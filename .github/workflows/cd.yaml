@@ -1,0 +1,52 @@
+
+name: CD Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      version:
+        description: 'Version to deploy'
+        required: true
+        default: 'latest'
+        type: string
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+      - name: Configure Kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=$PWD/kubeconfig
+      - name: Pre-deployment validation
+        run: |
+          echo "Running pre-deployment validation"
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install sre-challenge ./helm/sre-challenge \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/sre-challenge \
+            --set image.tag=${{ github.event.inputs.version}}
+      - name: Post-deployment verification
+        run: |
+          echo "Running post-deployment verification"
